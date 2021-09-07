@@ -1,0 +1,70 @@
+---
+- name: Install DNF package which is required for the source Repo
+  yum:
+    name: 
+      - dnf
+      - dnf-plugins-core
+    state: present
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Install EPEL on Redhat/Centos systems
+  dnf:
+    name: "https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm"
+    state: present
+    enablerepo: epel-release
+    disable_gpg_check: yes # Need to create a task to import GPG Keys to fix this.
+  become: true
+  when: ansible_facts['os_family'] == "RedHat" and ansible_distribution != 'Fedora'
+
+- name: Enable COPR based Repository for Neofetch. Ignore the module consideration message, it's impossible to do this.
+  shell: |
+    dnf -y copr enable konimex/neofetch
+  become: true
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Install Neofetch on RedHat based systems.
+  dnf:
+    name: neofetch
+    state: present
+  become: true
+  when: ansible_facts['os_family'] == "RedHat"
+
+- name: Create a Neofetch Directory.
+  file:
+    path: /opt/neofetch
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Install custom neofetch config file.
+  template:
+    src: config.conf.j2
+    dest: /opt/neofetch/config.conf
+    backup: yes
+    owner: root
+    group: root
+    mode: 0666
+
+- name: Create file for execution of Neofetch on non RHEL systems.
+  copy:
+    src: motd.sh
+    dest: /etc/profile.d/motd.sh
+    owner: root
+    group: root
+    mode: 0655
+  when: ansible_facts['distribution'] != "RedHat"
+
+- name: Create file for execution of Neofetch on RHEL systems.
+  copy:
+    src: rhel-motd.sh
+    dest: /etc/profile.d/motd.sh
+    owner: root
+    group: root
+    mode: 0655
+  when: ansible_facts['distribution'] == "RedHat"
+
+- name: Remove EPEL repository (and clean up left-over metadata)
+  yum_repository:
+    name: epel
+    state: absent
